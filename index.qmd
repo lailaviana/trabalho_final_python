@@ -1,0 +1,173 @@
+---
+title: "Comparação entre músicas da década de 60 até os anos 2010. O que mudou?"
+author: "Laila Viana"
+toc: true
+toc-location: left
+format: 
+  html:
+    code-fold: true
+    smooth-scroll: true
+editor: visual
+theme: cosmo
+---
+
+## Dataset para análise
+
+O [dataset](https://www.kaggle.com/datasets/theoverman/the-spotify-hit-predictor-dataset) escolhido foi baixado do Kaggle e ele trata sobre músicas lançadas desde a década de 60 até os anos 2010.  
+O objetivo da análise é avaliar quais características mudaram nas músicas ao longo das décadas e se as músicas consideradas hits continuam com as mesmas características ao longo do tempo ou se houve alguma mudança. Além disso, vamos dar uma olhada em quem foram os artistas que lançaram mais hits ao longo das décadas.  
+
+## Linguagem e bibliotecas utilizadas  
+A linguagem utilizada será **python** e as análises exploratórias e visualização serão feitas utilizando as bibliotecas `pandas`, `glob`, `os`, `seaborn` e `matplotlib`.  
+
+```{python}
+#| echo: true
+import pandas as pd
+import glob as glob
+import os as os
+import seaborn as sb
+import matplotlib.pyplot as plt
+```
+
+## Importando os dados
+
+Para importação dos dados utilizamos o método read_csv do `pandas`. Como se tratavam de vários datasets, cada um contendo músicas pertencentes à uma década diferente, a solução encontrada foi criar um caminho para onde estavam os arquivos, ler cada um deles, adicionar uma coluna para identificar qual década do lançamento da música e por fim, concatenar todos eles em um unico dataframe. Para isso utilizamos as bibliotecas `glob` e `os`.
+
+```{python}
+path = r'D:/Documents/Curso-R/Python-para-usuarios-R/trabalho_final_python/'
+files =  glob.glob(path + "/*.csv")
+
+spotify = pd.concat([pd.read_csv(files).assign(decade=os.path.basename(files).split('.')[0]) 
+       for files in files])
+
+```
+
+## Análise exploratória
+
+Para uma rápida análise exploratória, vamos utilizar dois métodos, o *info* e o *describe*.
+
+Com o resultado obtido do info, foi possível observar que o dado se trata de um dataframe contendo 20 colunas e 41106 linhas, sendo os tipos presentes:
+
+-   float (número quebrado)
+-   int (número inteiro)
+-   object (semelhante à str)
+
+```{python}
+spotify.info()
+```
+
+Já o describe nos retornou todas as colunas que se enquandravam no quesito número e mostrou a contagem, a média, o desvio padrão, o número mínimo, 25%, 50%, 75% e o número máximo encontrado.
+
+```{python}
+spotify.describe()
+```
+
+## Comparação das medianas entre as músicas consideradas hit e flop em todas as décadas estudadas
+
+Para realizar a comparação, as linhas foram filtradas com base no valor da coluna target. Se a coluna target fosse 1, a música era um hit, e se o valor fosse 0, a música era um flop. Feito isso, recuperamos os valores da mediana fornecido pelo describe e depois concatenamos usando o método concat do `pandas`.  
+
+Foi possível observar que em geral, as músicas consideradas hits tiveram uma mediana maior na *danceability*, *energy*, *valence* (mais alegres) e uma mediana menor em *acousticness*, significando que não se tratam de músicas acústicas.  
+
+```{python}
+hit = spotify.query("target == 1")
+flop = spotify.query("target == 0")
+
+hit_median = hit.describe().loc["50%"]
+flop_median = flop.describe().loc["50%"]
+
+median_joined = pd.concat([hit_median, flop_median], axis = 1)
+median_joined.columns = ["hit_mediana", "flop_mediana"]
+
+median_joined
+```
+
+
+## As músicas consideradas hits soam mais felizes ou tristes?
+
+Para avaliar isso, levamos em conta a váriavel *valence*, que varia de 0 a 1, onde quando mais próximo de 0, mais ela é negativa (triste, depressiva ou raivosa) e quando mais próxima de 1, mais positiva, alegre e eufória ela é.\
+
+Para as músicas consideradas hit, uma coisa interessante foi observada. Nas décadas de 60, 70 e 80 elas eram consideradas mais alegres, mas ao passar para os anos 90, 2000 e 2010, é possível observar um deslocamento na curva em direção à esquerda, mostrando que os hits não se tratam de músicas necessariamente muito alegres.  
+
+Com relação às músicas consideradas flop, a distribuição é bem parecida ao longo das décadas. Interessante chamar atenção para a década de 2010 que tem seu pico próximo de 0, mostrando que as músicas consideradas flop são tristes.
+
+```{python}
+spotify_2 = (spotify
+  .filter(["valence", "decade", "target"])
+  .reset_index()
+)
+
+sb.displot(spotify_2, x = "valence", hue = "decade", kind = "kde", col = "target", height=4, aspect=.7)
+```
+
+## Qual a duração das músicas consideradas hits?
+
+A duração das músicas consideradas hits foi em média 4 minutos, não ouve muita variação em relação às músicas consideradas flop. Uma coisa interessante é que na década de 60 as músicas em geral eram mais curtas que as produzidas nas décadas seguintes.
+
+```{python}
+spotify_duracao = (spotify
+  .assign(duracao = spotify.duration_ms / 60000)
+  .reset_index()
+)
+sb.displot(data = spotify_duracao, x = "duracao", kind = "kde", hue = "decade", col = "target", height=4, aspect=.7)
+plt.xlim(0,10)
+```
+
+## Ser no formato acústico interfere se a música vai ser um hit ou um flop?
+Para responder isso, avaliamos a distribuição dos valores que dizem se as músicas são acústicas (valor próximo de 1) ou se são feitas por meio eletrônico (valor próximo de 0).  
+
+Foi observado que para músicas consideradas hits, desde os anos 70 é possível ver que os valores estão deslocados para o lado esquerdo do gráfico, ou seja, em geral não são músicas acústicas. Já para a década de 60, provavelmente por causa de tecnologias ainda não existentes, as músicas são majoritariamente acústicas.  
+
+Para as músicas consideradas flop, é possível observar a presença de picos tanto em valores próximos a 0 quanto próximos à 1. O que sugere que o fato de ser acústico pode levar a música a ser um flop, mas nem todos os flops são músicas acústicas.  
+
+
+```{python}
+spotify_3 = spotify.reset_index()
+sb.displot(data = spotify_3, x = "acousticness", kind = "kde", hue = "decade", col = "target", height=4, aspect=.7)
+```
+
+## Quais foram os artistas que tiveram maior número de hits ao longo das décadas? Quem apareceu em mais décadas?
+
+Os artistas que mais tiveram hits ao longo do tempo foram nomes bem conhecidos. No topo da lista estão os Beatles, seguidos por Elton John, Rolling Stones e Madonna. Dos cantores mais novos, estão Drake, Taylow Swift e o elenco de Glee.  
+
+```{python}
+target = (spotify
+  .query("target == 1")
+  .filter(["artist", "track", "decade"])
+  .groupby(["artist", "decade"])
+  .count()
+  .sort_values(["decade","track"], ascending = False)
+  .reset_index()
+)
+
+top_tracks = (target
+  .groupby("artist")
+  .sum()
+  .sort_values(["track"], ascending = False)
+  .reset_index()[:10]
+)
+
+sb.catplot(data = top_tracks, x = "track", y = "artist", kind = "bar")
+
+```
+
+Com relação aos artistas que mais lançaram hits em diferentes décadas, temos uma lista um pouco diferente. Em primeiro e segundo lugar aparecem o Prince e a Cher, lançando hits em 5 décadas diferentes!  
+
+Também é possível reparar a presença de Stevie Wonder e Elton John nessa lista, mostrando que além de ter uma grande quantidade de hits, eles foram lançados ao longo de 40 anos!  
+```{python}
+top_artist = (target
+  .filter(["artist","decade"])
+  .groupby(["artist"])
+  .count()
+  .sort_values(["decade"], ascending = False)
+  .reset_index()[:10]
+)
+
+sb.catplot(data = top_artist, x = "decade", y = "artist", kind = "bar")
+```
+
+
+## Conclusões
+Dado os resultados obtidos, podemos tirar algumas conclusões, como:
+
+-   As músicas ao longo do tempo apresentaram modificações em suas características, provavelmente associada ao desenvolvimento de novas tecnologias e também ao contexto social de cada momento;
+-   Dos top10 artistas com mais hits, apenas 3 são artistas que surgiram nas décadas mais recentes;
+-   Dos top10 artistas que mais aparecem ao longo das décadas, apenas 2 estão figurados com maior número de hits.
